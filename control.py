@@ -1,11 +1,13 @@
 from operator import ge
+from re import T
+from tkinter.constants import W
 from image_utils import *
 import time
 import pyautogui
 
 TICKS_PER_DEG = 8
-# Optimal mining angle (vertical)
-MINING_ANGLE = 35
+MINING_ANGLE = 33
+WALKING_SPEED = 4.317
 
 def set_angles(h, v, win, pos_dict, xc=968, yc=539):
 	kp1 = TICKS_PER_DEG
@@ -31,7 +33,7 @@ def set_angles(h, v, win, pos_dict, xc=968, yc=539):
 			elif err2 < -180:
 				err2 += 360
 
-			if abs(err1) <= 3 and abs(err2) <= 3:
+			if abs(err1) <= 2 and abs(err2) <= 2:
 				break 
 
 			resp1 = kp1 * err1
@@ -80,18 +82,23 @@ def turn(turn_type, win, pos_dict, xc=968, yc=539):
 		target_h = -90
 	
 	if turn_type == 'right':
-		target_h -= 5
+		target_h -= 2
 	elif turn_type == 'left':
-		target_h += 5
+		target_h += 2
 
 	set_angles(target_h, v, win, pos_dict, xc, yc)
 
-def move_feadback(n, win, pos_dict):
+def move_feedback(n, win, pos_dict, mining=False):
 	# Get start values
-	start_x, start_z = get_values(['x', 'z'], pos_dict)
+	pair = get_values(['x', 'z'], pos_dict)
+	while pair[0] is None or pair[1] is None:
+		pair = get_values(['x', 'z'], pos_dict)
+	start_x, start_z = pair
 
 	# Get start angles for direction purposes
 	both = get_values(['angle'], pos_dict)[0]
+	while both is None:
+		both = get_values(['angle'], pos_dict)[0]
 	h, _ = both
 
 	# Determine which direction we want to go in
@@ -102,46 +109,59 @@ def move_feadback(n, win, pos_dict):
 	if abs(horiz) > abs(vert):
 		if horiz > 0:
 			z_dir = 1
+			target = start_z + n
 		else:
 			z_dir = -1
-		start = start_z
+			target = start_z - n
+		pos = start_z
 	else:
-		if vert > 0:
+		if vert < 0:
 			x_dir = 1
+			target = start_x + n
 		else:
 			x_dir = -1
-		start = start_x
-	pos = start
+			target = start_x - n
+		pos = start_x
+	target = round(target * 2) / 2.0
 	
-	# Main loop
-	while int(abs(pos - start)) != n:
-		if x_dir != 0:
+	hitting = False
+	t_sec = 1
+	prev_pos = pos
+	# Feedback controller
+	while pos is None or abs(pos - target) > 0.2:
+		if pos is not None:
+			t_sec = abs(pos - target) / WALKING_SPEED
+			prev_pos = pos
+		else:
+			pos = prev_pos
+		if not hitting and mining:
+				pyautogui.mouseDown(button='left')
+				hitting = True
+		if x_dir != 0 and pos is not None:
+			if x_dir * (pos - target) < 0:
+				move_forward(t_sec=t_sec, win=win)
+			else:
+				move_backward(t_sec=t_sec, win=win)
 			pos = get_values(['x'], pos_dict)[0]
-			if x_dir * (pos - start) < n:
-				win.type_keys('{w down}')
-				win.type_keys('{w up}')
-			else:
-				win.type_keys('{s down}')
-				win.type_keys('{s up}')
 		elif z_dir != 0:
-			pos = get_values(['z'], pos_dict)[0]
-			if z_dir * (pos - start) < n:
-				win.type_keys('{w down}')
-				win.type_keys('{w up}')
+			if z_dir * (pos - target) < 0:
+				move_forward(t_sec=t_sec, win=win)
 			else:
-				win.type_keys('{s down}')
-				win.type_keys('{s up}')
-		print(start, pos)
-
-	win.type_keys('{w up}')
-	win.type_keys('{s up}')
-		
+				move_backward(t_sec=t_sec, win=win)
+			pos = get_values(['z'], pos_dict)[0]
 	
-
-def move(num_blocks, win):
+		if hitting and pos is not None and abs(pos - target) <= 0.2:
+			pyautogui.mouseUp(button='left')
+				
+def move_forward(t_sec, win):
 	win.type_keys('{w down}')
-	time.sleep(num_blocks)
+	time.sleep(t_sec)
 	win.type_keys('{w up}')
+
+def move_backward(t_sec, win):
+	win.type_keys('{s down}')
+	time.sleep(t_sec)
+	win.type_keys('{s up}')
 
 def set_torch(toolbar, win, pos_dict, xc=968, yc=539):
 	# First, search for torch if it exists
@@ -177,6 +197,25 @@ def set_torch(toolbar, win, pos_dict, xc=968, yc=539):
 	win.type_keys(f'{{{orig_ind} down}}')
 	win.type_keys(f'{{{orig_ind} up}}')
 
-
-
+def break_one_col(win, pos_dict):
+	n_changes = 0
+	# Get target block
+	old = get_values(['target'], pos_dict)[0]
+	while old is None:
+		old = get_values(['target'], pos_dict)[0]
 	
+	# left click untill two changes
+	pyautogui.mouseDown(button='left')
+
+	# One change
+	trip = get_values(['target'], pos_dict)[0]
+	while trip == old:
+		trip = get_values(['target'], pos_dict)[0]
+	old = trip
+
+	# Second change
+	trip = get_values(['target'], pos_dict)[0]
+	while trip == old:
+		trip = get_values(['target'], pos_dict)[0]
+	
+	pyautogui.mouseUp(button='left')

@@ -3,6 +3,23 @@ import pytesseract
 import numpy as np
 from PIL import Image, ImageGrab
 
+def extract_target_block(text):
+
+	if 'Targeted Block= ' not in text:
+		return None
+	# Remove text
+	text = text.replace('Targeted Block= ', '')
+	text = text.replace("[^0-9.]", "")
+
+	# Split by comma
+	splt = text.split(',')
+	if len(splt) != 3:
+		return None
+	x = float(splt[0])
+	
+
+	return (float(splt[0]), float(splt[1]), float(splt[2]))
+
 def extract_location(text):
 	# Remove non numerics
 	text = text.replace("[^0-9.]", "")
@@ -32,7 +49,11 @@ def extract_angle(text):
 	
 	# Replace comma with period
 	angle_text = angle_text.replace(',', '.')
-	horiz, vert = angle_text.split('%')
+	temp = angle_text.split('%')
+	if len(temp) != 2:
+		return None
+
+	horiz, vert = temp
 
 	# Attempt
 	try:
@@ -46,7 +67,7 @@ def extract_angle(text):
 def pixelwise_func(pixel): 
 	r, g, b = pixel
 	#Check if text
-	if int(0.2989 * r + 0.5870 * g + 0.1140 * b) < 150:
+	if int(0.2989 * r + 0.5870 * g + 0.1140 * b) < 190:
 		return 0
 	else:
 		#Else, return grayscale
@@ -76,6 +97,7 @@ def get_values(vals, val_dict, print_output=False):
 		# Grab the area of the screen
 		image = screenGrab(pairs)
 		image = process_image(image)
+		# image.show()
 		# OCR the image
 		text  = pytesseract.image_to_string(image, lang='mc')
 		# IF the OCR found anything, print it
@@ -85,7 +107,7 @@ def get_values(vals, val_dict, print_output=False):
 				ret = extract_angle(text)
 				if ret == None:
 					# Try again
-					return get_values(vals, val_dict, print_output)
+					ret_lst.append(None) #return get_values(vals, val_dict, print_output)
 				else:
 					h, v = ret
 					prnt_str += f'Horizontal - {h}:\tVertical - {v}\n'
@@ -97,10 +119,13 @@ def get_values(vals, val_dict, print_output=False):
 					ret_lst.append(flt)
 				else:
 					# Try again
-					return get_values(vals, val_dict, print_output)
+					ret_lst.append(None) #return get_values(vals, val_dict, print_output)
+			elif val == 'target':
+				trip = extract_target_block(text)
+				ret_lst.append(trip)
 		else:
 			# Try again
-			return get_values(vals, val_dict, print_output)
+			ret_lst.append(None) #return get_values(vals, val_dict, print_output)
 	
 	if print_output:
 		print(prnt_str)

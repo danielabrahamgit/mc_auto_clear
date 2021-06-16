@@ -1,14 +1,16 @@
 from pynput import mouse
 
-SAVE_FILE = 'saved_boxes/box.txt'
+#SAVE_FILE = 'saved_boxes/box_somg;e.txt'
+SAVE_FILE = 'saved_boxes/box_multi.txt'
 
 val_to_position = {
 	'x':[],
 	'y':[],
 	'z':[],
 	'angle':[],
-	'type':[]
+	'target':[]
 }
+
 key_list = list(val_to_position.keys())
 
 inp_count = 0
@@ -36,7 +38,7 @@ def on_click(x, y, button, pressed):
 			inp_count += 1
 			ask_input()
 	elif button == mouse.Button.middle:
-		
+		write_dict_to_file(val_to_position)
 		return False
 
 def ask_input():
